@@ -40,12 +40,12 @@ func RegisterRoutes(e *echo.Echo, config *config.Config) {
 	})
 
 	// List files within current folder -> (nesting not supported)
-	e.GET("/listFiles", func(c echo.Context) error {
+	e.GET("/files", func(c echo.Context) error {
 		return listFilesHandler(c, config)
 	})
 
 	// List folders within current folder -> (nesting not supported)
-	e.GET("/listFolders", func(c echo.Context) error {
+	e.GET("/folders", func(c echo.Context) error {
 		return listFoldersHandler(c, config)
 	})
 
@@ -160,8 +160,6 @@ func listFilesHandler(c echo.Context, config *config.Config) error {
 	// Next page token for pagination
 	nextPageToken := c.Request().Header.Get("x-next")
 
-	fmt.Println("nextPageToken: ", nextPageToken)
-
 	// Page size for pagination
 	pageSize, err := strconv.Atoi(c.QueryParam("pageSize"))
 	if err != nil {
@@ -189,7 +187,14 @@ func listFilesHandler(c echo.Context, config *config.Config) error {
 		return c.JSON(http.StatusInternalServerError, response)
 	}
 
-	return c.JSON(http.StatusOK, s3.SortFiles(objects.Files, c))
+	return c.JSON(http.StatusOK,
+		s3.ListFilesResponse{
+			Data:                s3.SortFiles(*objects.Data, c),
+			NextPageToken:       objects.NextPageToken,
+			IsLastPage:          objects.IsLastPage,
+			NoOfRecordsReturned: objects.NoOfRecordsReturned,
+		},
+	)
 }
 
 // List all folders from a folder path
@@ -203,8 +208,6 @@ func listFoldersHandler(c echo.Context, config *config.Config) error {
 	if pageSize == 0 {
 		pageSize = config.PaginationPageSize
 	}
-
-	fmt.Println("pageSize: ", pageSize)
 
 	// If no folder is provided, set the nested folder path to an empty string
 	if nestedFolderPath == "*" {
@@ -227,7 +230,7 @@ func listFoldersHandler(c echo.Context, config *config.Config) error {
 		return c.JSON(http.StatusInternalServerError, response)
 	}
 
-	return c.JSON(http.StatusOK, s3.SortFiles(objects.Files, c))
+	return c.JSON(http.StatusOK, objects)
 }
 
 // Handler for downloading a file

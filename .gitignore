@@ -21,3 +21,7 @@
 go.work
 
 config/config.json
+
+
+.env
+.env.local

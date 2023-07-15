@@ -19,11 +19,6 @@ type S3 struct {
 	svc        *s3.S3
 }
 
-type ListFilesResponseType struct {
-	Files         []ObjectDetails
-	NextPageToken string
-}
-
 // NewS3 creates a new S3 instance with the specified bucket name and AWS session.
 func NewClient(config *config.Config) (*S3, error) {
 	// Create a new AWS session
@@ -67,7 +62,7 @@ func (s *S3) UploadFile(src io.Reader, objectKey string) error {
 }
 
 // ListObjects lists all the objects within a folder in the S3 bucket.
-func (s *S3) ListFiles(folderPath string, nextPageToken string, pageSize int) (*ListFilesResponseType, error) {
+func (s *S3) ListFiles(folderPath string, nextPageToken string, pageSize int) (*ListFilesResponse, error) {
 	input := &s3.ListObjectsV2Input{
 		Bucket:  aws.String(s.bucketName),
 		Prefix:  aws.String(folderPath),
@@ -99,15 +94,17 @@ func (s *S3) ListFiles(folderPath string, nextPageToken string, pageSize int) (*
 		nextToken = *resp.NextContinuationToken
 	}
 
-	response := &ListFilesResponseType{
-		Files:         objects,
-		NextPageToken: nextToken,
+	response := &ListFilesResponse{
+		Data:                &objects,
+		NextPageToken:       nextToken,
+		IsLastPage:          *resp.IsTruncated,
+		NoOfRecordsReturned: int32(len(objects)),
 	}
 
 	return response, nil
 }
 
-func (s *S3) ListFolders(folderPath string, nextPageToken string, pageSize int) (*ListFilesResponseType, error) {
+func (s *S3) ListFolders(folderPath string, nextPageToken string, pageSize int) (*ListFilesResponse, error) {
 	input := &s3.ListObjectsV2Input{
 		Bucket:  aws.String(s.bucketName),
 		Prefix:  aws.String(folderPath),
@@ -142,9 +139,11 @@ func (s *S3) ListFolders(folderPath string, nextPageToken string, pageSize int) 
 		nextToken = *resp.NextContinuationToken
 	}
 
-	response := &ListFilesResponseType{
-		Files:         objects,
-		NextPageToken: nextToken,
+	response := &ListFilesResponse{
+		Data:                &objects,
+		NextPageToken:       nextToken,
+		IsLastPage:          *resp.IsTruncated,
+		NoOfRecordsReturned: int32(len(objects)),
 	}
 
 	return response, nil
@@ -206,7 +205,7 @@ func (s *S3) DeleteFolder(folderPath string) error {
 	for response.NextPageToken != "" {
 		iterator++
 
-		for _, obj := range response.Files {
+		for _, obj := range *response.Data {
 			if obj.IsFolder {
 				err = s.DeleteFolder(obj.Name)
 				if err != nil {
@@ -242,7 +241,7 @@ func (s *S3) ListAllFilesAndFolders(folderPath string, nextPageToken string, pag
 	// filter out the folders
 	filterResult := []ObjectDetails{}
 
-	for _, obj := range response.Files {
+	for _, obj := range *response.Data {
 		if obj.IsFolder {
 			filterResult = append(filterResult, obj)
 		}

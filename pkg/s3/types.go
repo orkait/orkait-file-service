@@ -14,8 +14,8 @@ type ObjectDetails struct {
 
 type ListFilesResponse struct {
 	Data                *[]ObjectDetails `json:"data"`
-	NextPageToken       string           `json:"nextPageToken"`        // for pagination purposes only if
-	IsLastPage          bool             `json:"isLastPage,omitempty"` // for pagination purposes only if
+	NextPageToken       string           `json:"nextPageToken,omitempty"` // for pagination purposes only if
+	IsLastPage          bool             `json:"isLastPage,omitempty"`    // for pagination purposes only if
 	NoOfRecordsReturned int32            `json:"noOfRecordsReturned,omitempty"`
 }
 
@@ -41,4 +41,19 @@ type FileInfo struct {
 	Name     string `json:"name"`
 	IsFolder bool   `json:"isFolder"`
 	// Add more fields as per your requirements
+}
+
+type FilterOptions struct {
+	SizeRange          string
+	TimeRange          string
+	FileTypes          []string
+	FilenameQuery      string
+	FilenameFilterType string
+	FileSize           int64
+	FileSizeFilterType string
+}
+
+type FilterSizeRange struct {
+	MinSize int64
+	MaxSize int64
 }

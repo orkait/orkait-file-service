@@ -8,7 +8,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 )
@@ -18,11 +17,6 @@ var AppConfig *config.Config
 
 func main() {
 	e := echo.New()
-
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("Error loading .env file")
-	}
 
 	log.SetOutput(os.Stderr)
 	// Apply rate limiter middleware
@@ -45,7 +39,7 @@ func main() {
 
 	e.Use(middleware.RateLimiterWithConfig(rateLimiterConfig))
 
-	config, err := config.LoadConfig("config/config.json")
+	config, err := config.LoadConfig()
 	if err != nil {
 		log.Fatalf("Failed to load configuration: %s", err)
 	}
