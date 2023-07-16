@@ -13,10 +13,12 @@ type ObjectDetails struct {
 }
 
 type ListFilesResponse struct {
-	Data                *[]ObjectDetails `json:"data"`
+	Files               *[]ObjectDetails `json:"data"`
 	NextPageToken       string           `json:"nextPageToken,omitempty"` // for pagination purposes only if
 	IsLastPage          bool             `json:"isLastPage,omitempty"`    // for pagination purposes only if
 	NoOfRecordsReturned int32            `json:"noOfRecordsReturned,omitempty"`
+	FilesCount          int32            `json:"filesCount,omitempty"`
+	FoldersCount        int32            `json:"foldersCount,omitempty"`
 }
 
 type SuccessResponse struct {

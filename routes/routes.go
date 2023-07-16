@@ -30,23 +30,9 @@ func RegisterRoutes(e *echo.Echo, config *config.Config) {
 		return deleteFileHandler(c, config)
 	})
 
-	e.DELETE("/deleteFolder", func(c echo.Context) error {
-		return deleteFolderHandler(c, config)
-	})
-
-	// List files and folders within current folder
+	// List files within current folder
 	e.GET("/list", func(c echo.Context) error {
-		return listFolderContentHandler(c, config)
-	})
-
-	// List files within current folder -> (nesting not supported)
-	e.GET("/files", func(c echo.Context) error {
 		return listFilesHandler(c, config)
-	})
-
-	// List folders within current folder -> (nesting not supported)
-	e.GET("/folders", func(c echo.Context) error {
-		return listFoldersHandler(c, config)
 	})
 
 	// Define route for testing the server
@@ -55,16 +41,9 @@ func RegisterRoutes(e *echo.Echo, config *config.Config) {
 
 // Handler for image upload
 func uploadFileHandler(c echo.Context, config *config.Config) error {
-	// Get the bucket and folderPath from the form fields
-	bucket := c.FormValue("bucket")
-	folderPath := c.FormValue("folderPath")
-
-	// Validate the required fields
-	if bucket == "" {
-		response := s3.GetFailureResponse(errors.New("\"bucket\" is required"))
-		return c.JSON(http.StatusInternalServerError, response)
-	}
+	folderPath := c.FormValue("path")
 	file, err := c.FormFile("file")
+
 	if err != nil {
 		// Handle the error and return an error response
 		errorMessage := fmt.Sprintf("Failed to retrieve uploaded file: %s", err.Error())
@@ -123,39 +102,16 @@ func uploadFileHandler(c echo.Context, config *config.Config) error {
 	return c.JSON(http.StatusOK, response)
 }
 
-// Handler for listing files and folders with pagination [limit & page]
-func listFolderContentHandler(c echo.Context, config *config.Config) error {
-	// Retrieve the nested folder path from the request parameter
-	nestedFolderPath := c.QueryParam("folder")
-
-	// If no folder is provided, set the nested folder path to an empty string
-	if nestedFolderPath == "*" {
-		nestedFolderPath = ""
-	}
-
-	// Create a new S3 client
-	client, err := s3.NewClient(config) // Update with your desired region
-
-	if err != nil {
-		response := s3.GetFailureResponse(err)
-		return c.JSON(http.StatusInternalServerError, response)
-	}
-
-	// List all the files and folders within the nested folder
-	objects, err := client.ListAllFilesAndFolders(nestedFolderPath, "", 1000)
-
-	if err != nil {
-		response := s3.GetFailureResponse(err)
-		return c.JSON(http.StatusInternalServerError, response)
-	}
-
-	return c.JSON(http.StatusOK, objects)
-}
-
-// List all files from a folder path
+// List all files and folders within a folder
 func listFilesHandler(c echo.Context, config *config.Config) error {
-	// Retrieve the nested folder path from the request parameter
-	nestedFolderPath := c.QueryParam("path")
+
+	// bool
+	isFolder, err := strconv.ParseBool(c.QueryParam("isFolder"))
+	if err != nil {
+		isFolder = false
+	}
+
+	folderPath := c.QueryParam("path")
 
 	// Next page token for pagination
 	nextPageToken := c.Request().Header.Get("x-next")
@@ -166,11 +122,6 @@ func listFilesHandler(c echo.Context, config *config.Config) error {
 		pageSize = config.PaginationPageSize
 	}
 
-	// If no folder is provided, set the nested folder path to an empty string
-	if nestedFolderPath == "*" {
-		nestedFolderPath = ""
-	}
-
 	// Create a new S3 client
 	client, err := s3.NewClient(config) // Update with your desired region
 
@@ -180,42 +131,21 @@ func listFilesHandler(c echo.Context, config *config.Config) error {
 	}
 
 	// List all the files and folders within the nested folder
-	objects, err := client.ListFiles(nestedFolderPath, nextPageToken, pageSize)
+	objects, err := client.ListFiles(folderPath, nextPageToken, pageSize, isFolder)
 
 	if err != nil {
 		response := s3.GetFailureResponse(err)
 		return c.JSON(http.StatusInternalServerError, response)
 	}
 
-	return c.JSON(http.StatusOK,
-		s3.ListFilesResponse{
-			Data:                s3.SortFiles(*objects.Data, c),
-			NextPageToken:       objects.NextPageToken,
-			IsLastPage:          objects.IsLastPage,
-			NoOfRecordsReturned: objects.NoOfRecordsReturned,
-		},
-	)
+	return c.JSON(http.StatusOK, objects)
 }
 
-// List all folders from a folder path
-func listFoldersHandler(c echo.Context, config *config.Config) error {
-	// Retrieve the nested folder path from the request parameter
-	nestedFolderPath := c.QueryParam("path")
-
-	// pageSize := config.PaginationPageSize
-	pageSize, _ := strconv.Atoi(c.QueryParam("pageSize"))
-
-	if pageSize == 0 {
-		pageSize = config.PaginationPageSize
-	}
-
-	// If no folder is provided, set the nested folder path to an empty string
-	if nestedFolderPath == "*" {
-		nestedFolderPath = ""
-	}
-
+func listAllFilesHandler(c echo.Context, config *config.Config) error {
 	// Create a new S3 client
 	client, err := s3.NewClient(config) // Update with your desired region
+
+	folderPath := c.QueryParam("path")
 
 	if err != nil {
 		response := s3.GetFailureResponse(err)
@@ -223,7 +153,7 @@ func listFoldersHandler(c echo.Context, config *config.Config) error {
 	}
 
 	// List all the files and folders within the nested folder
-	objects, err := client.ListFolders(nestedFolderPath, "", pageSize)
+	objects, err := client.ListAllFiles(folderPath)
 
 	if err != nil {
 		response := s3.GetFailureResponse(err)
@@ -278,7 +208,7 @@ func downloadFileHandler(c echo.Context, config *config.Config) error {
 
 func deleteFileHandler(c echo.Context, config *config.Config) error {
 	// bucket := c.QueryParam("bucket")
-	objectKey := c.QueryParam("objectKey")
+	path := c.QueryParam("path")
 
 	// Create a new S3 client
 	client, err := s3.NewClient(config) // Update with your desired region
@@ -288,7 +218,7 @@ func deleteFileHandler(c echo.Context, config *config.Config) error {
 	}
 
 	// Delete the file or folder from the S3 bucket
-	err = client.DeleteObject(objectKey)
+	err = client.DeleteObject(path)
 	if err != nil {
 		response := s3.GetFailureResponse(err)
 		return c.JSON(http.StatusInternalServerError, response)
@@ -301,7 +231,7 @@ func deleteFileHandler(c echo.Context, config *config.Config) error {
 
 func deleteFolderHandler(c echo.Context, config *config.Config) error {
 	// bucket := c.QueryParam("bucket")
-	folderPath := c.QueryParam("folderPath")
+	folderPath := c.QueryParam("path")
 
 	// Create a new S3 client
 	client, err := s3.NewClient(config) // Update with your desired region
