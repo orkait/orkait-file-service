@@ -34,17 +34,14 @@ go mod download
 4. Configure the service:
 Create a configuration file named config.json in the project root and populate it with the necessary configuration parameters:
 
-```json
-{
-  "bucketName": "orkait-file-management-service",
-  "region": "ap-south-1",
-  "downloadURLTimeLimit": 300,
-  "paginationPageSize": 100,
-  "awsAccessKeyId": "your-aws-access-key-id",
-  "awsSecretAccessKey": "your-aws-secret-access-key"
-}
+```js
+BUCKET_NAME=orkait-file-management-service
+REGION=ap-south-1
+DOWNLOAD_URL_TIME_LIMIT=300
+PAGINATION_PAGE_SIZE=100
+AWS_ACCESS_KEY_ID=your-aws-access-key-id
+AWS_SECRET_ACCESS_KEY=your-aws-secret-access-key
 ```
-
 
 ## Usage
 
