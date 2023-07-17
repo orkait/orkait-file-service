@@ -12,6 +12,11 @@ type ObjectDetails struct {
 	DownloadLink string    `json:"downloadLink,omitempty"`
 }
 
+// CreateFolderRequest represents the request body structure for creating a folder
+type CreateFolderRequest struct {
+	FolderName string `json:"folderName"`
+}
+
 type ListFilesResponse struct {
 	Files               *[]ObjectDetails `json:"data"`
 	NextPageToken       string           `json:"nextPageToken,omitempty"` // for pagination purposes only if

@@ -44,7 +44,27 @@ func NewClient(config *config.Config) (*S3, error) {
 	}, nil
 }
 
-// UploadFile uploads a file to the S3 bucket.
+// CreateFolder creates a folder (empty object) in the specified bucket and folder path
+func (s *S3) CreateFolder(folderPath string) error {
+	// Add a trailing slash to the folder path if not already present
+	if folderPath != "" && !strings.HasSuffix(folderPath, "/") {
+		folderPath += "/"
+	}
+
+	// Create an empty object with the folder path as the key
+	input := &s3.PutObjectInput{
+		Bucket: aws.String(s.bucketName),
+		Key:    aws.String(folderPath),
+	}
+
+	_, err := s.svc.PutObject(input)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // UploadFile uploads a file to the S3 bucket.
 func (s *S3) UploadFile(src io.Reader, objectKey string) error {
 	// Upload the file to S3

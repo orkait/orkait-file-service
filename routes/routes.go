@@ -35,8 +35,44 @@ func RegisterRoutes(e *echo.Echo, config *config.Config) {
 		return listFilesHandler(c, config)
 	})
 
+	e.POST("/create-folder", func(c echo.Context) error {
+		return createFolderHandler(c, config)
+	})
+
 	// Define route for testing the server
 	e.GET("/ping", ping)
+}
+
+// Handler to create folder
+// createFolderHandler is a handler function for creating a folder in S3
+func createFolderHandler(c echo.Context, config *config.Config) error {
+	// Get the folder path from the request body or query parameter, depending on your requirements
+	// Parse the request body into a CreateFolderRequest object
+	req := new(s3.CreateFolderRequest)
+	if err := c.Bind(req); err != nil {
+		return c.String(http.StatusBadRequest, "Invalid request body")
+	}
+
+	// Get the folder name from the request body
+	folderName := req.FolderName
+
+	// Create a new S3 client using your desired bucket name and region
+	client, err := s3.NewClient(config)
+	if err != nil {
+		// Handle error creating S3 client
+		response := s3.GetFailureResponse(errors.New("failed to create S3 client"))
+		return c.JSON(http.StatusInternalServerError, response)
+	}
+
+	// Call the CreateFolder function to create the folder
+	err = client.CreateFolder(folderName)
+	if err != nil {
+		// Handle error creating folder
+		response := s3.GetFailureResponse(errors.New("failed to create folder"))
+		return c.JSON(http.StatusInternalServerError, response)
+	}
+	response := s3.GetSuccessResponse("Folder created successfully")
+	return c.JSON(http.StatusOK, response)
 }
 
 // Handler for image upload
@@ -97,7 +133,7 @@ func uploadFileHandler(c echo.Context, config *config.Config) error {
 
 	// Return a success response
 	successMessage := fmt.Sprintf("File uploaded successfully with object key: %s", objectKey)
-	response := s3.GetUploadDeleteSuccessResponse(successMessage)
+	response := s3.GetSuccessResponse(successMessage)
 	// Return the array of file and folder information as JSON response
 	return c.JSON(http.StatusOK, response)
 }
@@ -138,7 +174,8 @@ func listFilesHandler(c echo.Context, config *config.Config) error {
 		return c.JSON(http.StatusInternalServerError, response)
 	}
 
-	return c.JSON(http.StatusOK, objects)
+	response := s3.GetListFolderSuccessResponse(objects)
+	return c.JSON(http.StatusOK, response)
 }
 
 func listAllFilesHandler(c echo.Context, config *config.Config) error {
@@ -225,7 +262,7 @@ func deleteFileHandler(c echo.Context, config *config.Config) error {
 	}
 
 	// Return a success response
-	response := s3.GetUploadDeleteSuccessResponse("File deleted successfully")
+	response := s3.GetSuccessResponse("File deleted successfully")
 	return c.JSON(http.StatusOK, response)
 }
 
@@ -248,7 +285,7 @@ func deleteFolderHandler(c echo.Context, config *config.Config) error {
 	}
 
 	// Return a success response
-	response := s3.GetUploadDeleteSuccessResponse("Folder deleted successfully")
+	response := s3.GetSuccessResponse("Folder deleted successfully")
 	return c.JSON(http.StatusOK, response)
 }
 

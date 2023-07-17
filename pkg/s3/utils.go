@@ -25,11 +25,11 @@ func GetListFolderSuccessResponse(payload *ListFilesResponse) SuccessResponse {
 	}
 }
 
-func GetUploadDeleteSuccessResponse(filePath string) SuccessResponse {
+func GetSuccessResponse(message string) SuccessResponse {
 	return SuccessResponse{
 		Status:       "Success",
 		ResponseCode: http.StatusOK,
-		Data:         filePath,
+		Data:         message,
 	}
 }
 
