@@ -15,6 +15,17 @@ import (
 // Global variable to hold the configuration
 var AppConfig *config.Config
 
+func getPort() string {
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = ":3000"
+	} else {
+		port = ":" + port
+	}
+
+	return port
+}
+
 func main() {
 	e := echo.New()
 
@@ -51,6 +62,6 @@ func main() {
 	routes.RegisterRoutes(e, AppConfig)
 
 	// Start the server
-	e.Start(":8080")
+	e.Start(getPort())
 	log.Println("Server Started!!!")
 }
