@@ -242,6 +242,7 @@ func (s *S3) GetFile(bucket, key string) (io.Reader, error) {
 	}
 
 	result, err := s.svc.GetObject(input)
+
 	if err != nil {
 		return nil, err
 	}

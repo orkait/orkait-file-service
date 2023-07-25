@@ -5,7 +5,6 @@ import (
 	"file-management-service/config"
 	"file-management-service/pkg/s3"
 	"fmt"
-	"io"
 	"net/http"
 	"path/filepath"
 	"strconv"
@@ -202,8 +201,7 @@ func listAllFilesHandler(c echo.Context, config *config.Config) error {
 
 // Handler for downloading a file
 func downloadFileHandler(c echo.Context, config *config.Config) error {
-	bucket := c.QueryParam("bucket") // Correct parameter name: "bucket"
-	key := c.QueryParam("objectKey")
+	key := c.QueryParam("path")
 
 	// Create a new S3 client
 	client, err := s3.NewClient(config) // Update with your desired region
@@ -212,35 +210,28 @@ func downloadFileHandler(c echo.Context, config *config.Config) error {
 		return c.JSON(http.StatusInternalServerError, response)
 	}
 
-	// Retrieve the file from S3 using the GetFile function
-	file, err := client.GetFile(bucket, key)
+	url, err := client.GenerateDownloadLink(key)
+
 	if err != nil {
-		// Handle the error
-		response := s3.GetFailureResponse(err)
-		return c.JSON(http.StatusInternalServerError, response)
+		return c.JSON(http.StatusInternalServerError, s3.GetFailureResponse(err))
 	}
-	defer func() {
-		if closer, ok := file.(io.Closer); ok {
-			closer.Close()
-		}
-	}()
 
 	// Get the fileName, ignoring folders in prefix.
 	fileName := filepath.Base(key)
 
-	// Set the response headers
-	c.Response().Header().Set("Content-Type", "application/octet-stream")
-	c.Response().Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", fileName))
-
-	// Copy the file content to the response body
-	_, err = io.Copy(c.Response().Writer, file)
-	if err != nil {
-		// Handle the error
-		response := s3.GetFailureResponse(err)
-		return c.JSON(http.StatusInternalServerError, response)
+	if fileName != "" {
+		return c.JSON(http.StatusOK,
+			s3.SuccessResponse{
+				Status:       "Success",
+				ResponseCode: http.StatusOK,
+				Data: map[string]string{
+					"url":      url,
+					"fileName": fileName,
+				},
+			})
 	}
 
-	return nil
+	return c.JSON(http.StatusInternalServerError, s3.GetFailureResponse(err))
 }
 
 func deleteFileHandler(c echo.Context, config *config.Config) error {

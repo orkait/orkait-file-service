@@ -3,11 +3,13 @@ package main
 import (
 	"file-management-service/config"
 	"file-management-service/routes"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"time"
 
+	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 )
@@ -18,7 +20,7 @@ var AppConfig *config.Config
 func getPort() string {
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = ":3000"
+		port = ":8080"
 	} else {
 		port = ":" + port
 	}
@@ -28,6 +30,13 @@ func getPort() string {
 
 func main() {
 	e := echo.New()
+
+	// load .env file
+	err := godotenv.Load(".env")
+
+	if err != nil {
+		fmt.Println("Error loading environment variables")
+	}
 
 	log.SetOutput(os.Stderr)
 	// Apply rate limiter middleware
@@ -48,7 +57,11 @@ func main() {
 		},
 	}
 
+	// Apply rate limiter middleware
 	e.Use(middleware.RateLimiterWithConfig(rateLimiterConfig))
+
+	// Apply CORS middleware
+	e.Use(middleware.CORS())
 
 	config, err := config.LoadConfig()
 	if err != nil {
