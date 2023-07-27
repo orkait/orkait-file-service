@@ -133,6 +133,15 @@ func (s *S3) ListFiles(folderPath string, nextPageToken string, pageSize int, is
 				Size:         *obj.Size,
 				LastModified: *obj.LastModified,
 			})
+
+			// generate a signed download URL for the object
+			downloadURL, err := s.GenerateDownloadLink(*obj.Key)
+
+			if err != nil {
+				return nil, err
+			}
+
+			objects[len(objects)-1].DownloadLink = downloadURL
 		}
 	}
 
@@ -253,8 +262,9 @@ func (s *S3) GetFile(bucket, key string) (io.Reader, error) {
 // Function to generate a signed download URL for the object
 func (s *S3) GenerateDownloadLink(objectKey string) (string, error) {
 	req, _ := s.svc.GetObjectRequest(&s3.GetObjectInput{
-		Bucket: aws.String(s.bucketName),
-		Key:    aws.String(objectKey),
+		Bucket:              aws.String(s.bucketName),
+		Key:                 aws.String(objectKey),
+		ResponseContentType: aws.String("image/png"),
 	})
 
 	downloadURL, err := req.Presign(15 * time.Minute) // Set the validity period of the signed URL
