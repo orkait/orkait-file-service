@@ -2,6 +2,7 @@ package main
 
 import (
 	"file-management-service/config"
+	"file-management-service/pkg/cache"
 	"file-management-service/routes"
 	"fmt"
 	"log"
@@ -71,8 +72,18 @@ func main() {
 	// Assign the configuration to the global variable
 	AppConfig = config
 
+	cache := cache.NewURLCache()
+
+	// spawn a goroutine to clear the cache every 5 minutes
+	go func() {
+		for {
+			time.Sleep(5 * time.Minute)
+			cache.Clear()
+		}
+	}()
+
 	// Register routes
-	routes.RegisterRoutes(e, AppConfig)
+	routes.RegisterRoutes(e, AppConfig, cache)
 
 	// Start the server
 	e.Start(getPort())

@@ -2,6 +2,7 @@ package s3
 
 import (
 	"file-management-service/config"
+	"file-management-service/pkg/cache"
 	"fmt"
 	"io"
 	"strings"
@@ -82,7 +83,7 @@ func (s *S3) UploadFile(src io.Reader, objectKey string) error {
 }
 
 // ListObjects lists all the objects within a folder in the S3 bucket.
-func (s *S3) ListFiles(folderPath string, nextPageToken string, pageSize int, isFolder bool) (*ListFilesResponse, error) {
+func (s *S3) ListFiles(folderPath string, nextPageToken string, pageSize int, isFolder bool, cache *cache.URLCache) (*ListFilesResponse, error) {
 
 	// If the folder path does not end with a slash, add it
 	if (folderPath != "") && !strings.HasSuffix(folderPath, "/") {
@@ -135,7 +136,7 @@ func (s *S3) ListFiles(folderPath string, nextPageToken string, pageSize int, is
 			})
 
 			// generate a signed download URL for the object
-			downloadURL, err := s.GenerateDownloadLink(*obj.Key)
+			downloadURL, err := s.GenerateDownloadLink(*obj.Key, cache)
 
 			if err != nil {
 				return nil, err
@@ -163,7 +164,7 @@ func (s *S3) ListFiles(folderPath string, nextPageToken string, pageSize int, is
 }
 
 func (s *S3) ListAllFiles(folderPath string) (*ListFilesResponse, error) {
-	objects, err := s.ListFiles(folderPath, "", 10, false)
+	objects, err := s.ListFiles(folderPath, "", 10, false, &cache.URLCache{})
 	nextToken := objects.NextPageToken
 	if err != nil {
 		return nil, err
@@ -173,7 +174,7 @@ func (s *S3) ListAllFiles(folderPath string) (*ListFilesResponse, error) {
 
 	// check if next page token is present
 	for nextToken != "" {
-		temp, _ := s.ListFiles(folderPath, nextToken, 10, false)
+		temp, _ := s.ListFiles(folderPath, nextToken, 10, false, &cache.URLCache{})
 		allObjects = append(allObjects, *temp.Files...)
 
 		if temp.IsLastPage {
@@ -185,12 +186,12 @@ func (s *S3) ListAllFiles(folderPath string) (*ListFilesResponse, error) {
 	// Helper function to recursively fetch objects from subfolders
 	var listObjectsRecursively func(path string) error
 	listObjectsRecursively = func(path string) error {
-		objects, err := s.ListFiles(path, "", 10, false)
+		objects, err := s.ListFiles(path, "", 10, false, &cache.URLCache{})
 		nextToken := objects.NextPageToken
 
 		// check if next page token is present
 		for nextToken != "" {
-			t, _ := s.ListFiles(path, nextToken, 10, false)
+			t, _ := s.ListFiles(path, nextToken, 10, false, &cache.URLCache{})
 			allObjects = append(allObjects, *t.Files...)
 
 			if t.IsLastPage {
@@ -260,17 +261,29 @@ func (s *S3) GetFile(bucket, key string) (io.Reader, error) {
 }
 
 // Function to generate a signed download URL for the object
-func (s *S3) GenerateDownloadLink(objectKey string) (string, error) {
+func (s *S3) GenerateDownloadLink(objectKey string, cache *cache.URLCache) (string, error) {
+	url, found := cache.Get(objectKey)
+
+	// Check if the URL is already in the cache and valid
+	if found {
+		return url, nil
+	}
+
+	expiryTime := 15 * time.Minute
+
 	req, _ := s.svc.GetObjectRequest(&s3.GetObjectInput{
 		Bucket:              aws.String(s.bucketName),
 		Key:                 aws.String(objectKey),
 		ResponseContentType: aws.String("image/png"),
 	})
 
-	downloadURL, err := req.Presign(15 * time.Minute) // Set the validity period of the signed URL
+	downloadURL, err := req.Presign(expiryTime) // Set the validity period of the signed URL
 	if err != nil {
 		return "", err
 	}
+
+	// Cache the URL with its expiration time
+	cache.Set(objectKey, downloadURL, time.Now().Add(expiryTime))
 
 	return downloadURL, nil
 }
@@ -290,6 +303,5 @@ func (s *S3) DeleteObject(objectKey string) error {
 }
 
 func (s *S3) DeleteFolder(folderPath string) error {
-
 	return nil
 }

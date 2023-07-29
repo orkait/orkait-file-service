@@ -3,6 +3,7 @@ package routes
 import (
 	"errors"
 	"file-management-service/config"
+	"file-management-service/pkg/cache"
 	"file-management-service/pkg/s3"
 	"fmt"
 	"net/http"
@@ -13,7 +14,7 @@ import (
 )
 
 // RegisterRoutes registers all the routes for the application
-func RegisterRoutes(e *echo.Echo, config *config.Config) {
+func RegisterRoutes(e *echo.Echo, config *config.Config, cache *cache.URLCache) {
 	// Define route for uploading images
 	e.POST("/upload", func(c echo.Context) error {
 		return uploadFileHandler(c, config)
@@ -21,17 +22,17 @@ func RegisterRoutes(e *echo.Echo, config *config.Config) {
 
 	// Define route for serving files
 	e.GET("/download", func(c echo.Context) error {
-		return downloadFileHandler(c, config)
+		return downloadFileHandler(c, config, cache)
 	})
 
 	// Delete File
 	e.DELETE("/delete", func(c echo.Context) error {
-		return deleteFileHandler(c, config)
+		return deleteFileHandler(c, config, cache)
 	})
 
 	// List files within current folder
 	e.GET("/list", func(c echo.Context) error {
-		return listFilesHandler(c, config)
+		return listFilesHandler(c, config, cache)
 	})
 
 	e.POST("/create-folder", func(c echo.Context) error {
@@ -138,7 +139,7 @@ func uploadFileHandler(c echo.Context, config *config.Config) error {
 }
 
 // List all files and folders within a folder
-func listFilesHandler(c echo.Context, config *config.Config) error {
+func listFilesHandler(c echo.Context, config *config.Config, cache *cache.URLCache) error {
 
 	// bool
 	isFolder, err := strconv.ParseBool(c.QueryParam("isFolder"))
@@ -166,7 +167,7 @@ func listFilesHandler(c echo.Context, config *config.Config) error {
 	}
 
 	// List all the files and folders within the nested folder
-	objects, err := client.ListFiles(folderPath, nextPageToken, pageSize, isFolder)
+	objects, err := client.ListFiles(folderPath, nextPageToken, pageSize, isFolder, cache)
 
 	if err != nil {
 		response := s3.GetFailureResponse(err)
@@ -200,7 +201,7 @@ func listAllFilesHandler(c echo.Context, config *config.Config) error {
 }
 
 // Handler for downloading a file
-func downloadFileHandler(c echo.Context, config *config.Config) error {
+func downloadFileHandler(c echo.Context, config *config.Config, cache *cache.URLCache) error {
 	key := c.QueryParam("path")
 
 	// Create a new S3 client
@@ -210,7 +211,7 @@ func downloadFileHandler(c echo.Context, config *config.Config) error {
 		return c.JSON(http.StatusInternalServerError, response)
 	}
 
-	url, err := client.GenerateDownloadLink(key)
+	url, err := client.GenerateDownloadLink(key, cache)
 
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, s3.GetFailureResponse(err))
@@ -234,7 +235,7 @@ func downloadFileHandler(c echo.Context, config *config.Config) error {
 	return c.JSON(http.StatusInternalServerError, s3.GetFailureResponse(err))
 }
 
-func deleteFileHandler(c echo.Context, config *config.Config) error {
+func deleteFileHandler(c echo.Context, config *config.Config, cache *cache.URLCache) error {
 	// bucket := c.QueryParam("bucket")
 	path := c.QueryParam("path")
 
