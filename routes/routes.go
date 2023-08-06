@@ -30,9 +30,19 @@ func RegisterRoutes(e *echo.Echo, config *config.Config, cache *cache.URLCache) 
 		return deleteFileHandler(c, config, cache)
 	})
 
+	// Delete File
+	e.DELETE("/delete-folder", func(c echo.Context) error {
+		return deleteFolderHandler(c, config)
+	})
+
 	// List files within current folder
 	e.GET("/list", func(c echo.Context) error {
 		return listFilesHandler(c, config, cache)
+	})
+
+	// list all folders within current folder
+	e.GET("/list-folders", func(c echo.Context) error {
+		return listAllFoldersHandler(c, config)
 	})
 
 	e.POST("/create-folder", func(c echo.Context) error {
@@ -46,15 +56,17 @@ func RegisterRoutes(e *echo.Echo, config *config.Config, cache *cache.URLCache) 
 // Handler to create folder
 // createFolderHandler is a handler function for creating a folder in S3
 func createFolderHandler(c echo.Context, config *config.Config) error {
-	// Get the folder path from the request body or query parameter, depending on your requirements
-	// Parse the request body into a CreateFolderRequest object
-	req := new(s3.CreateFolderRequest)
-	if err := c.Bind(req); err != nil {
-		return c.String(http.StatusBadRequest, "Invalid request body")
+
+	folderName := c.QueryParam("path")
+
+	if folderName == "" {
+		response := s3.GetFailureResponse(errors.New("folder path is required and should end with /"))
+		return c.JSON(http.StatusBadRequest, response)
 	}
 
-	// Get the folder name from the request body
-	folderName := req.FolderName
+	if string(folderName[len(folderName)-1]) != "/" {
+		folderName = folderName + "/"
+	}
 
 	// Create a new S3 client using your desired bucket name and region
 	client, err := s3.NewClient(config)
@@ -196,6 +208,22 @@ func listAllFilesHandler(c echo.Context, config *config.Config) error {
 		response := s3.GetFailureResponse(err)
 		return c.JSON(http.StatusInternalServerError, response)
 	}
+
+	return c.JSON(http.StatusOK, objects)
+}
+
+func listAllFoldersHandler(c echo.Context, config *config.Config) error {
+	// Create a new S3 client
+	client, err := s3.NewClient(config) // Update with your desired region
+	folderPath := c.QueryParam("path")
+
+	if err != nil {
+		response := s3.GetFailureResponse(err)
+		return c.JSON(http.StatusInternalServerError, response)
+	}
+
+	// List all the files and folders within the nested folder
+	objects := client.ListAllFolders(folderPath)
 
 	return c.JSON(http.StatusOK, objects)
 }

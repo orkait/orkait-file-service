@@ -3,7 +3,6 @@ package s3
 import (
 	"file-management-service/config"
 	"file-management-service/pkg/cache"
-	"fmt"
 	"io"
 	"strings"
 	"time"
@@ -78,7 +77,6 @@ func (s *S3) UploadFile(src io.Reader, objectKey string) error {
 		return err
 	}
 
-	fmt.Println("File uploaded successfully")
 	return nil
 }
 
@@ -298,10 +296,166 @@ func (s *S3) DeleteObject(objectKey string) error {
 		return err
 	}
 
-	fmt.Println("Object deleted successfully")
 	return nil
 }
 
+// DeleteFolder deletes a folder and its contents recursively from the S3 bucket.
 func (s *S3) DeleteFolder(folderPath string) error {
+
+	// add a trailing slash to the folder path if not already present
+	if folderPath != "" && !strings.HasSuffix(folderPath, "/") {
+		folderPath += "/"
+	}
+
+	allObjects := []ObjectDetails{}
+
+	resp, err := s.svc.ListObjectsV2(&s3.ListObjectsV2Input{
+		Bucket:  aws.String(s.bucketName),
+		Prefix:  aws.String(folderPath),
+		MaxKeys: aws.Int64(2),
+	})
+
+	for _, obj := range resp.Contents {
+
+		if *obj.Key == folderPath {
+			continue // skip the folder itself
+		}
+
+		allObjects = append(allObjects, ObjectDetails{
+			Name:         *obj.Key,
+			IsFolder:     *obj.Size == 0,
+			Size:         *obj.Size,
+			LastModified: *obj.LastModified,
+		})
+	}
+
+	if err != nil {
+		return err
+	}
+
+	nextToken := resp.NextContinuationToken
+
+	for nextToken != nil {
+
+		curr, err := s.svc.ListObjectsV2(&s3.ListObjectsV2Input{
+			Bucket:            aws.String(s.bucketName),
+			Prefix:            aws.String(folderPath),
+			MaxKeys:           aws.Int64(1000),
+			ContinuationToken: nextToken,
+		})
+
+		if err != nil {
+			return err
+		}
+
+		for _, obj := range curr.Contents {
+
+			if *obj.Key == folderPath {
+				continue // skip the folder itself
+			}
+
+			allObjects = append(allObjects, ObjectDetails{
+				Name:         *obj.Key,
+				IsFolder:     *obj.Size == 0,
+				Size:         *obj.Size,
+				LastModified: *obj.LastModified,
+			})
+
+			// update the next token
+			nextToken = curr.NextContinuationToken
+
+			if nextToken == nil {
+				break
+			}
+		}
+
+	}
+
+	for _, obj := range allObjects {
+		err := s.DeleteObject(obj.Name)
+		if err != nil {
+			return err
+		}
+	}
+
+	// delete the folder itself
+	err = s.DeleteObject(folderPath)
+
+	if err != nil {
+		return err
+	}
+
 	return nil
+}
+
+// ListAllFolders lists all the folders within a folder in the S3 bucket.
+func (s *S3) ListAllFolders(folderPath string) []ObjectDetails {
+	// add a trailing slash to the folder path if not already present
+	if folderPath != "" && !strings.HasSuffix(folderPath, "/") {
+		folderPath += "/"
+	}
+
+	allObjects := []ObjectDetails{}
+
+	resp, err := s.svc.ListObjectsV2(&s3.ListObjectsV2Input{
+		Bucket:  aws.String(s.bucketName),
+		Prefix:  aws.String(folderPath),
+		MaxKeys: aws.Int64(1000),
+	})
+
+	for _, obj := range resp.Contents {
+
+		if *obj.Key == folderPath {
+			continue // skip the folder itself
+		}
+
+		if *obj.Size == 0 {
+			allObjects = append(allObjects, ObjectDetails{
+				Name:         *obj.Key,
+				IsFolder:     *obj.Size == 0,
+				Size:         *obj.Size,
+				LastModified: *obj.LastModified,
+			})
+		}
+	}
+
+	if err != nil {
+		return allObjects
+	}
+
+	nextToken := resp.NextContinuationToken
+
+	for nextToken != nil {
+		curr, _ := s.svc.ListObjectsV2(&s3.ListObjectsV2Input{
+			Bucket:            aws.String(s.bucketName),
+			Prefix:            aws.String(folderPath),
+			MaxKeys:           aws.Int64(1000),
+			ContinuationToken: nextToken,
+		})
+
+		for _, obj := range curr.Contents {
+
+			if *obj.Key == folderPath {
+				continue // skip the folder itself
+			}
+
+			if *obj.Size == 0 {
+				allObjects = append(allObjects, ObjectDetails{
+					Name:         *obj.Key,
+					IsFolder:     *obj.Size == 0,
+					Size:         *obj.Size,
+					LastModified: *obj.LastModified,
+				})
+			}
+
+			// update the next token
+			nextToken = curr.NextContinuationToken
+			if nextToken == nil {
+				break
+			}
+		}
+
+	}
+
+	return allObjects
 }
